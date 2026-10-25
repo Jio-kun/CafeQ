@@ -60,7 +60,7 @@ Sunrise Cafe and Moonlight Coffee have their own menu, cart, checkout, My Orders
 STAFF FLOW
 Staff Login > find order by code > update order status.
 
-IMPORTANT LIMITATION
-This is a student demo. Orders are kept in the running Flask app's memory, so the staff section can see orders made by customers using the same running app. Orders reset when you stop/restart the app. For permanent storage, the next step is a shared database such as SQLite. The staff login is for demonstration only.
+ORDER STORAGE AND CLEANUP
+Orders are stored in the SQLite database at CafeQ_Python_QR_Update/instance/cafes.sqlite3. Customer order history, staff dashboards, and live displays read from the same database, so orders and staff status updates remain available after restarting the app. Staff can permanently delete an individual order from the dashboard; deleting it removes it from customer order history and live displays as well. The staff login is for demonstration only.
 
-Staff validation fix: the staff page now loads the live ORDERS list, so submitted validation codes can be found and displayed. Orders remain in memory and reset when the Flask app restarts.
+The staff dashboard uses slightly smaller typography for easier reading.
