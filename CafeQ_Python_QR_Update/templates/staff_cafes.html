@@ -45,7 +45,7 @@
   {% if cafe.is_demo %}
   <p class="muted">Built-in demo cafe. Its menu and website are served by this app.</p>
   {% else %}
-  <p><a class="button light" href="{{ url_for('qr_page') }}">View cafe QR codes</a></p>
+  <p><a class="button light" href="{{ url_for('staff_qr_page') }}">View cafe QR codes</a></p>
   {% endif %}
 </section>
 {% else %}
