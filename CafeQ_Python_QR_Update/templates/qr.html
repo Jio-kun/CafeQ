@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card" style="max-width:760px;margin:24px auto;text-align:center">
+  <span class="eyebrow">CAFEQ · SCAN TO ORDER</span>
+  <h1>Scan to Open Our Menu</h1>
+  <p>Use your phone camera to scan this QR code. It will open the CafeQ digital menu.</p>
+  <img src="{{ url_for('qr_image') }}" alt="QR code for the CafeQ menu" style="display:block;width:min(320px,80%);height:auto;margin:24px auto;background:white;padding:12px;border-radius:12px">
+  <p><strong>Menu link:</strong> <a href="{{ menu_url }}">{{ menu_url }}</a></p>
+  <p>For a phone to scan it, use a website link that your phone can reach. See README.txt for the simple same-Wi-Fi setup.</p>
+  <a class="button" href="{{ url_for('menu') }}">Open Menu</a>
+</section>
+{% endblock %}
