@@ -1,0 +1,35 @@
+.staff-portal {
+  font-size: 14px;
+}
+
+.staff-portal nav {
+  font-size: 13px;
+}
+
+.staff-portal .wrap h1 {
+  font-size: clamp(34px, 4vw, 52px);
+}
+
+.staff-portal .wrap h2 {
+  font-size: 23px;
+}
+
+.staff-portal .wrap h3 {
+  font-size: 18px;
+}
+
+.staff-portal .wrap .card {
+  padding: 18px;
+}
+
+.staff-portal .wrap .eyebrow {
+  font-size: 10px;
+}
+
+.staff-portal button.danger {
+  background: #963d32;
+}
+
+.staff-portal button.danger:hover {
+  background: #742d25;
+}

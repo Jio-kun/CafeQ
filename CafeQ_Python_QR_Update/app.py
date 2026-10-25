@@ -3,6 +3,7 @@ import random
 import string
 import os
 import re
+import json
 import sqlite3
 from io import BytesIO
 from urllib.parse import urlsplit
@@ -44,10 +45,6 @@ MENU = [
 STAFF_USER = "staff"
 STAFF_PASS = "cafeq123"  # Demo password for school prototype only.
 
-# Keep orders on the server instead of inside the browser session cookie.
-# This is simple for a school demo; orders reset when the app is restarted.
-ORDERS = []
-
 def menu_dicts():
     return [dict(id=i, category=c, name=n, price=p, description=d) for i, c, n, p, d in MENU]
 
@@ -81,6 +78,21 @@ def connect_db():
             is_demo INTEGER NOT NULL DEFAULT 0
         )"""
     )
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS customer_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            order_number INTEGER NOT NULL,
+            customer TEXT NOT NULL,
+            order_type TEXT NOT NULL,
+            cafe_name TEXT NOT NULL,
+            cafe_slug TEXT,
+            items_json TEXT NOT NULL,
+            total REAL NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(cafes)")}
     if "is_demo" not in columns:
         connection.execute("ALTER TABLE cafes ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0")
@@ -96,6 +108,111 @@ def connect_db():
         )
     connection.commit()
     return connection
+
+def order_from_row(row):
+    order = dict(row)
+    order["number"] = order.pop("order_number")
+    order["type"] = order.pop("order_type")
+    order["items"] = json.loads(order.pop("items_json"))
+    order.pop("id", None)
+    order.pop("created_at", None)
+    return order
+
+def get_orders(cafe_slug=None, codes=None):
+    conditions = []
+    parameters = []
+    if cafe_slug is not None:
+        conditions.append("cafe_slug = ?")
+        parameters.append(cafe_slug)
+    if codes is not None:
+        codes = list(codes)
+        if not codes:
+            return []
+        conditions.append(f"code IN ({','.join('?' for _ in codes)})")
+        parameters.extend(codes)
+    where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    connection = connect_db()
+    try:
+        rows = connection.execute(
+            """SELECT id, code, order_number, customer, order_type, cafe_name,
+                      cafe_slug, items_json, total, status, created_at
+               FROM customer_orders"""
+            + where_clause
+            + " ORDER BY id DESC",
+            parameters,
+        ).fetchall()
+        return [order_from_row(row) for row in rows]
+    finally:
+        connection.close()
+
+def save_order(order):
+    connection = connect_db()
+    try:
+        for _ in range(10):
+            order["code"] = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            try:
+                connection.execute(
+                    """INSERT INTO customer_orders
+                       (code, order_number, customer, order_type, cafe_name, cafe_slug,
+                        items_json, total, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        order["code"],
+                        order["number"],
+                        order["customer"],
+                        order["type"],
+                        order["cafe_name"],
+                        order.get("cafe_slug"),
+                        json.dumps(order["items"], ensure_ascii=False),
+                        order["total"],
+                        order["status"],
+                    ),
+                )
+                connection.commit()
+                return order
+            except sqlite3.IntegrityError as error:
+                connection.rollback()
+                if "customer_orders.code" not in str(error):
+                    raise
+        raise RuntimeError("Could not generate a unique order validation code.")
+    finally:
+        connection.close()
+
+def update_order_status(code, status, cafe_slug=None):
+    connection = connect_db()
+    try:
+        if cafe_slug is None:
+            cursor = connection.execute(
+                "UPDATE customer_orders SET status = ? WHERE code = ?",
+                (status, code),
+            )
+        else:
+            cursor = connection.execute(
+                "UPDATE customer_orders SET status = ? WHERE code = ? AND cafe_slug = ?",
+                (status, code, cafe_slug),
+            )
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
+
+def delete_order(code, cafe_slug=None):
+    connection = connect_db()
+    try:
+        if cafe_slug is None:
+            cursor = connection.execute(
+                "DELETE FROM customer_orders WHERE code = ?",
+                (code,),
+            )
+        else:
+            cursor = connection.execute(
+                "DELETE FROM customer_orders WHERE code = ? AND cafe_slug = ?",
+                (code, cafe_slug),
+            )
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
 
 def get_cafes():
     connection = connect_db()
@@ -163,10 +280,7 @@ def demo_customer_orders(cafe_slug):
     order_codes = set(session.get(demo_customer_order_codes_key(cafe_slug), []))
     if not order_codes:
         order_codes = set(session.get("customer_order_codes", []))
-    return [
-        order for order in ORDERS
-        if order.get("cafe_slug") == cafe_slug and order["code"] in order_codes
-    ]
+    return get_orders(cafe_slug=cafe_slug, codes=order_codes)
 
 def demo_shop_staff_logged_in(cafe_slug):
     return session.get("demo_staff_slug") == cafe_slug
@@ -260,10 +374,8 @@ def demo_shop_checkout(cafe_slug):
         if order_type not in {"Dine-in", "Takeout"}:
             flash("Choose Dine-in or Takeout.")
             return redirect(url_for("demo_shop_checkout", cafe_slug=cafe_slug))
-        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
         order = {
             "number": random.randint(100, 999),
-            "code": code,
             "customer": request.form.get("customer", "").strip() or "CafeQ Guest",
             "type": order_type,
             "cafe_name": shop["name"],
@@ -272,7 +384,8 @@ def demo_shop_checkout(cafe_slug):
             "total": demo_cart_total(items),
             "status": "Pending Payment",
         }
-        ORDERS.insert(0, order)
+        order = save_order(order)
+        code = order["code"]
         customer_codes = session.get(demo_customer_order_codes_key(cafe_slug), [])
         customer_codes.insert(0, code)
         session[demo_customer_order_codes_key(cafe_slug)] = customer_codes
@@ -302,7 +415,7 @@ def demo_shop_live(cafe_slug):
     shop = DEMO_SHOPS.get(cafe_slug)
     if shop is None:
         abort(404)
-    orders = [order for order in ORDERS if order.get("cafe_slug") == cafe_slug]
+    orders = get_orders(cafe_slug=cafe_slug)
     return render_template(
         "demo_shop_live.html",
         shop=shop,
@@ -342,7 +455,7 @@ def demo_shop_staff(cafe_slug):
         abort(404)
     if not demo_shop_staff_logged_in(cafe_slug):
         return redirect(url_for("demo_shop_staff_login", cafe_slug=cafe_slug))
-    orders = [order for order in ORDERS if order.get("cafe_slug") == cafe_slug]
+    orders = get_orders(cafe_slug=cafe_slug)
     if request.method == "POST":
         code = request.form.get("code", "").strip().upper()
         order = next((item for item in orders if item["code"] == code), None)
@@ -374,16 +487,27 @@ def demo_shop_staff_status(cafe_slug, code, status):
     allowed = ["Paid", "Preparing", "Ready for Pickup", "Completed"]
     if status not in allowed:
         abort(400)
-    order = next(
-        (item for item in ORDERS if item["code"] == code and item.get("cafe_slug") == cafe_slug),
-        None,
-    )
+    order = next(iter(get_orders(cafe_slug=cafe_slug, codes=[code])), None)
     if order is None:
         abort(404)
-    order["status"] = status
+    if not update_order_status(code, status, cafe_slug):
+        abort(404)
     flash("Order status updated.")
     session["demo_staff_selected_code"] = code
     return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug) + "#selected-order")
+
+@app.route("/shop/<cafe_slug>/staff/orders/<code>/delete", methods=["POST"])
+def demo_shop_staff_delete_order(cafe_slug, code):
+    if cafe_slug not in DEMO_SHOPS:
+        abort(404)
+    if not demo_shop_staff_logged_in(cafe_slug):
+        return redirect(url_for("demo_shop_staff_login", cafe_slug=cafe_slug))
+    if not delete_order(code, cafe_slug):
+        abort(404)
+    if session.get("demo_staff_selected_code") == code:
+        session.pop("demo_staff_selected_code", None)
+    flash("Order deleted.")
+    return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug) + "#customer-orders")
 
 @app.route("/qr/<cafe_slug>.png")
 def qr_image(cafe_slug):
@@ -434,10 +558,8 @@ def checkout():
         flash("Your cart is empty.")
         return redirect(url_for("menu"))
     if request.method == "POST":
-        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
         order = {
             "number": random.randint(100, 999),
-            "code": code,
             "customer": request.form.get("customer", "").strip() or "CafeQ Guest",
             "type": request.form.get("type", "Takeout"),
             "cafe_name": "CafeQ",
@@ -445,7 +567,8 @@ def checkout():
             "total": total(),
             "status": "Pending Payment"
         }
-        ORDERS.insert(0, order)
+        order = save_order(order)
+        code = order["code"]
         customer_codes = session.get("customer_order_codes", [])
         customer_codes.insert(0, code)
         session["customer_order_codes"] = customer_codes
@@ -456,7 +579,7 @@ def checkout():
 @app.route("/my-order")
 def my_order():
     customer_codes = session.get("customer_order_codes", [])
-    customer_orders = [order for order in ORDERS if order["code"] in customer_codes]
+    customer_orders = get_orders(codes=customer_codes)
     return render_template("orders.html", orders=customer_orders)
 
 @app.route("/staff/login", methods=["GET", "POST"])
@@ -482,7 +605,8 @@ def staff():
         return redirect(url_for("staff_login"))
     if request.method == "POST":
         code = request.form.get("code", "").strip().upper()
-        order = next((o for o in ORDERS if o["code"] == code), None)
+        orders = get_orders()
+        order = next((item for item in orders if item["code"] == code), None)
         if order:
             session["selected_code"] = code
             flash("Order found. Review the order below.")
@@ -490,11 +614,12 @@ def staff():
             session.pop("selected_code", None)
             flash("Code not found.")
         return redirect(url_for("staff"))
+    orders = get_orders()
     return render_template(
         "staff.html",
-        orders=ORDERS,
-        preparing=[o for o in ORDERS if o["status"] == "Preparing"],
-        ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"],
+        orders=orders,
+        preparing=[order for order in orders if order["status"] == "Preparing"],
+        ready=[order for order in orders if order["status"] == "Ready for Pickup"],
     )
 
 @app.route("/staff/cafes", methods=["GET", "POST"])
@@ -567,11 +692,12 @@ def update_cafe(cafe_id):
 def staff_live():
     if not staff_only():
         return redirect(url_for("staff_login"))
+    orders = get_orders()
     return render_template(
         "live.html",
         staff_view=True,
-        preparing=[o for o in ORDERS if o["status"] == "Preparing"],
-        ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"],
+        preparing=[o for o in orders if o["status"] == "Preparing"],
+        ready=[o for o in orders if o["status"] == "Ready for Pickup"],
     )
 
 @app.route("/staff/status/<code>/<status>", methods=["POST"])
@@ -581,19 +707,29 @@ def status(code, status):
     allowed = ["Paid", "Preparing", "Ready for Pickup", "Completed"]
     if status not in allowed:
         return redirect(url_for("staff"))
-    for order in ORDERS:
-        if order["code"] == code:
-            order["status"] = status
-            break
+    if not update_order_status(code, status):
+        abort(404)
     flash("Order status updated.")
     return redirect(url_for("staff"))
 
+@app.route("/staff/orders/<code>/delete", methods=["POST"])
+def staff_delete_order(code):
+    if not staff_only():
+        return redirect(url_for("staff_login"))
+    if not delete_order(code):
+        abort(404)
+    if session.get("selected_code") == code:
+        session.pop("selected_code", None)
+    flash("Order deleted.")
+    return redirect(url_for("staff") + "#customer-orders")
+
 @app.route("/live")
 def live():
+    orders = get_orders()
     return render_template("live.html",
         staff_view=False,
-        preparing=[o for o in ORDERS if o["status"] == "Preparing"],
-        ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"])
+        preparing=[o for o in orders if o["status"] == "Preparing"],
+        ready=[o for o in orders if o["status"] == "Ready for Pickup"])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

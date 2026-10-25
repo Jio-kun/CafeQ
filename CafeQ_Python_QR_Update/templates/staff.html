@@ -1,1 +1,73 @@
-{% extends "staff_base.html" %}{% block content %}<div class="row"><div><span class="eyebrow">PRIVATE STAFF PORTAL</span><h1>Staff Dashboard</h1><p>Track order progress, review customer orders, and update order status.</p></div><div><a class="button light" href="{{ url_for('staff_live') }}">Open Live Display</a> <a class="button" href="{{ url_for('staff_cafes') }}">Manage Cafes & QR Codes</a></div></div><div class="grid"><div class="card"><span class="eyebrow">PREPARING</span><h2>{{ preparing|length }}</h2><p>Orders currently being prepared.</p></div><div class="card"><span class="eyebrow">READY FOR PICKUP</span><h2>{{ ready|length }}</h2><p>Orders waiting for customers.</p></div><div class="card"><span class="eyebrow">TOTAL CUSTOMER ORDERS</span><h2>{{ orders|length }}</h2><p>Orders received in this app session.</p></div></div><div class="card"><h2>Validate order & take payment</h2><form method="post"><div class="field"><label>Validation code from customer</label><input name="code" maxlength="6" required placeholder="ABC123"></div><button>Find Order</button></form>{% if session.get('selected_code') %}{% for order in orders %}{% if order.code == session.get('selected_code') %}<div class="card"><h2>{{ order.cafe_name|default('CafeQ') }} · Order #{{ order.number }}</h2><p>Customer: {{ order.customer }} · Code: {{ order.code }} · Type: {{ order.type }}</p>{% for item in order['items'] %}<p>{{ item.name }} × {{ item.qty }} — ₱{{ item.line_total }}</p>{% endfor %}<h2>Total due: ₱{{ order.total }}</h2><p>Status: <span class="pill">{{ order.status }}</span></p>{% if order.status == 'Pending Payment' %}<p>Validate the items and collect payment from the customer.</p><form method="post" action="{{ url_for('status',code=order.code,status='Paid') }}"><button>Validate & Confirm Payment</button></form>{% elif order.status == 'Paid' %}<form method="post" action="{{ url_for('status',code=order.code,status='Preparing') }}"><button>Start Preparing</button></form>{% elif order.status == 'Preparing' %}<form method="post" action="{{ url_for('status',code=order.code,status='Ready for Pickup') }}"><button>Mark Ready for Pickup</button></form>{% elif order.status == 'Ready for Pickup' %}<form method="post" action="{{ url_for('status',code=order.code,status='Completed') }}"><button>Complete Order</button></form>{% endif %}</div>{% endif %}{% endfor %}{% endif %}</div><section id="customer-orders"><h2>Customer Orders</h2>{% for order in orders %}<div class="card"><div class="row"><h3>{{ order.cafe_name|default('CafeQ') }} · #{{ order.number }} · {{ order.customer }}</h3><span class="pill">{{ order.status }}</span></div><p>Code: {{ order.code }} · Type: {{ order.type }} · Total: ₱{{ order.total }}</p>{% for item in order['items'] %}<p>{{ item.name }} × {{ item.qty }} — ₱{{ item.line_total }}</p>{% endfor %}</div>{% else %}<div class="card">No customer orders yet.</div>{% endfor %}</section>{% endblock %}
+{% extends "staff_base.html" %}
+{% block content %}
+<div class="row">
+  <div>
+    <span class="eyebrow">PRIVATE STAFF PORTAL</span>
+    <h1>Staff Dashboard</h1>
+    <p>Track order progress, review customer orders, and update order status.</p>
+  </div>
+  <div>
+    <a class="button light" href="{{ url_for('staff_live') }}">Open Live Display</a>
+    <a class="button" href="{{ url_for('staff_cafes') }}">Manage Cafes & QR Codes</a>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card"><span class="eyebrow">PREPARING</span><h2>{{ preparing|length }}</h2><p>Orders currently being prepared.</p></div>
+  <div class="card"><span class="eyebrow">READY FOR PICKUP</span><h2>{{ ready|length }}</h2><p>Orders waiting for customers.</p></div>
+  <div class="card"><span class="eyebrow">TOTAL CUSTOMER ORDERS</span><h2>{{ orders|length }}</h2><p>Orders saved in SQLite.</p></div>
+</div>
+
+<div class="card">
+  <h2>Validate order & take payment</h2>
+  <form method="post">
+    <div class="field">
+      <label for="validation-code">Validation code from customer</label>
+      <input id="validation-code" name="code" maxlength="6" required placeholder="ABC123">
+    </div>
+    <button>Find Order</button>
+  </form>
+  {% if session.get('selected_code') %}
+    {% for order in orders %}
+      {% if order.code == session.get('selected_code') %}
+      <div class="card">
+        <h2>{{ order.cafe_name|default('CafeQ') }} · Order #{{ order.number }}</h2>
+        <p>Customer: {{ order.customer }} · Code: {{ order.code }} · Type: {{ order.type }}</p>
+        {% for item in order['items'] %}<p>{{ item.name }} × {{ item.qty }} — ₱{{ item.line_total }}</p>{% endfor %}
+        <h2>Total due: ₱{{ order.total }}</h2>
+        <p>Status: <span class="pill">{{ order.status }}</span></p>
+        {% if order.status == 'Pending Payment' %}
+          <p>Validate the items and collect payment from the customer.</p>
+          <form method="post" action="{{ url_for('status', code=order.code, status='Paid') }}"><button>Validate & Confirm Payment</button></form>
+        {% elif order.status == 'Paid' %}
+          <form method="post" action="{{ url_for('status', code=order.code, status='Preparing') }}"><button>Start Preparing</button></form>
+        {% elif order.status == 'Preparing' %}
+          <form method="post" action="{{ url_for('status', code=order.code, status='Ready for Pickup') }}"><button>Mark Ready for Pickup</button></form>
+        {% elif order.status == 'Ready for Pickup' %}
+          <form method="post" action="{{ url_for('status', code=order.code, status='Completed') }}"><button>Complete Order</button></form>
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+<section id="customer-orders">
+  <h2>Customer Orders</h2>
+  {% for order in orders %}
+  <div class="card">
+    <div class="row">
+      <h3>{{ order.cafe_name|default('CafeQ') }} · #{{ order.number }} · {{ order.customer }}</h3>
+      <span class="pill">{{ order.status }}</span>
+    </div>
+    <p>Code: {{ order.code }} · Type: {{ order.type }} · Total: ₱{{ order.total }}</p>
+    {% for item in order['items'] %}<p>{{ item.name }} × {{ item.qty }} — ₱{{ item.line_total }}</p>{% endfor %}
+    <form method="post" action="{{ url_for('staff_delete_order', code=order.code) }}" onsubmit="return confirm('Permanently delete this order?')">
+      <button class="danger" type="submit">Delete order</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="card">No customer orders yet.</div>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -356,7 +356,7 @@ a {
 
 .shop-staff-login h1,
 .shop-staff-heading h1 {
-  font: clamp(38px, 6vw, 60px)/1 Georgia, serif;
+  font: clamp(34px, 5vw, 48px)/1 Georgia, serif;
 }
 
 .shop-staff-login .shop-primary {
@@ -395,7 +395,7 @@ a {
   display: block;
   margin-top: 10px;
   color: var(--accent);
-  font: 42px Georgia, serif;
+  font: 36px Georgia, serif;
 }
 
 .shop-code-search {
@@ -429,7 +429,7 @@ a {
 
 .shop-staff-order-heading h3 {
   margin: 8px 0;
-  font: 23px Georgia, serif;
+  font: 20px Georgia, serif;
 }
 
 .shop-staff-order-heading p {
@@ -454,7 +454,16 @@ a {
 }
 
 .shop-staff-orders .shop-section-title h2 {
-  font-size: 32px;
+  font-size: 28px;
+}
+
+.shop-danger {
+  margin-top: 16px;
+  background: #963d32;
+}
+
+.shop-danger:hover {
+  background: #742d25;
 }
 
 .shop-customer-order,
