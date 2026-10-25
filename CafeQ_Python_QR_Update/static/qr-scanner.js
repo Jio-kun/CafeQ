@@ -7,7 +7,34 @@
 
   let stream = null;
   let detector = null;
+  let canvas = null;
+  let canvasContext = null;
   let scanning = false;
+
+  function resolveDestination(rawValue) {
+    let destination;
+    try {
+      destination = new URL(rawValue);
+    } catch {
+      return null;
+    }
+    if (destination.protocol !== "http:" && destination.protocol !== "https:") {
+      return null;
+    }
+
+    const host = destination.hostname.toLowerCase();
+    if ((host === "google.com" || host.endsWith(".google.com")) &&
+        destination.pathname.startsWith("/maps/search/")) {
+      const query = `${destination.searchParams.get("query") || ""} ${destination.searchParams.get("q") || ""}`.toLowerCase();
+      if (query.includes("sunrise") && query.includes("cafe")) {
+        return new URL("/shop/demo-sunrise-cafe", window.location.origin);
+      }
+      if (query.includes("moonlight") && query.includes("coffee")) {
+        return new URL("/shop/demo-moonlight-coffee", window.location.origin);
+      }
+    }
+    return destination;
+  }
 
   function stopCamera() {
     scanning = false;
@@ -24,17 +51,20 @@
     if (!scanning) return;
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       try {
-        const results = await detector.detect(video);
-        const rawValue = results[0]?.rawValue || null;
-        let destination = null;
-        try {
-          const url = new URL(rawValue);
-          if (url.protocol === "http:" || url.protocol === "https:") {
-            destination = url;
-          }
-        } catch {
-          destination = null;
+        let rawValue = null;
+        if (detector) {
+          const results = await detector.detect(video);
+          rawValue = results[0]?.rawValue || null;
+        } else {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frame = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+          rawValue = window.jsQR(frame.data, frame.width, frame.height, {
+            inversionAttempts: "dontInvert",
+          })?.data || null;
         }
+        const destination = resolveDestination(rawValue);
         if (destination) {
           scanning = false;
           message.textContent = `QR code found. Opening ${destination.href}`;
@@ -61,18 +91,22 @@
 
     startButton.disabled = true;
     try {
-      if (!("BarcodeDetector" in window)) {
-        message.textContent = "This browser does not have a built-in QR scanner. Use your phone's camera app to scan the cafe QR code.";
-        startButton.disabled = false;
-        return;
+      if ("BarcodeDetector" in window) {
+        const formats = await BarcodeDetector.getSupportedFormats();
+        if (formats.includes("qr_code")) {
+          detector = new BarcodeDetector({ formats: ["qr_code"] });
+        }
       }
-      const formats = await BarcodeDetector.getSupportedFormats();
-      if (!formats.includes("qr_code")) {
-        message.textContent = "This browser cannot scan QR codes. Use your phone's camera app to scan the cafe QR code.";
-        startButton.disabled = false;
-        return;
+      if (!detector && typeof window.jsQR !== "function") {
+        throw new Error("The local QR decoder did not load. Refresh the page and try again.");
       }
-      detector = new BarcodeDetector({ formats: ["qr_code"] });
+      if (!detector) {
+        canvas = document.createElement("canvas");
+        canvasContext = canvas.getContext("2d", { willReadFrequently: true });
+        if (!canvasContext) {
+          throw new Error("This browser could not initialize the local QR decoder.");
+        }
+      }
       stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: { facingMode: { ideal: "environment" } },

@@ -24,12 +24,12 @@ python -m pip install -r requirements.txt
 8. On the computer, open http://127.0.0.1:5000
 
 DEMO CAFE WEBSITES AND QR CODES
-1. Visit http://127.0.0.1:5000/demo-cafes to see, scan, or download the dummy cafe QR codes. The page uses its own template at templates/demo_cafes.html.
+1. Visit http://127.0.0.1:5000/demo-cafes to see, scan, or download the dummy cafe QR codes. Download a fresh code after this update; previously downloaded or printed QR images cannot be changed.
 2. Each QR contains a CafeQ website URL for a different demo cafe:
    /shop/demo-sunrise-cafe
    /shop/demo-moonlight-coffee
 3. The two demo websites have separate designs and menus. Customers can add items, choose Dine-in or Takeout, and receive an order validation code.
-4. The cashier signs in at /staff/login, enters the code, checks the order, collects payment, and confirms it.
+4. Each demo cafe website has a Staff login link. Cashiers sign in with Username: staff, Password: cafeq123, then enter the validation code, check the cafe-specific order, collect payment, and confirm it. Each cafe's staff dashboard only lists that cafe's orders.
 5. Demo cafe menu data and branding are in CafeQ_Python_QR_Update/demo_shops.py. The standalone shop templates and styling are in templates/demo_shop*.html and static/demo_shops.css.
 6. To make demo QR codes work on a phone over the same Wi-Fi, open the app using the computer's Wi-Fi IP (not 127.0.0.1), or set CAFEQ_BASE_URL to that reachable address before starting the app. For example:
    $env:CAFEQ_BASE_URL="http://192.168.1.10:5000"
@@ -42,8 +42,8 @@ REAL CAFE QR CODES
 
 CAMERA QR SCANNER
 1. Open http://127.0.0.1:5000/scan and allow camera access.
-2. Point the camera at a cafe QR code. The scanner opens its CafeQ shop or real cafe website.
-3. Camera access requires HTTPS or localhost. This scanner uses the browser's built-in QR detector without a third-party scanning service. If the browser does not provide that detector, scan using the phone's built-in camera app.
+2. Point the camera at a cafe QR code. The scanner opens its CafeQ shop or real cafe website. Old demo Sunrise Cafe and Moonlight Coffee Google Maps QR codes are also redirected to their local demo shops by this scanner.
+3. Camera access requires HTTPS or localhost. When the browser has no built-in QR detector, CafeQ uses the locally bundled jsQR decoder in static/vendor. Camera frames are processed in the browser and are not sent to a third-party scanning service. The library's Apache 2.0 license is included beside the decoder.
 
 STAFF LOGIN
 Open http://127.0.0.1:5000/staff/login
@@ -52,7 +52,10 @@ Password: cafeq123
 Staff pages have their own navigation and dashboard. The dashboard includes customer orders and order validation; use Live Display to view preparing and ready orders.
 
 CUSTOMER FLOW
-Scan a demo cafe QR > Cafe-specific menu > Add to order > Choose Dine-in or Takeout > Show validation code to cashier > Cashier validates and takes payment.
+Scan a demo cafe QR > Cafe-specific menu > Add to order > Choose Dine-in or Takeout > Show validation code to the cafe's cashier > Check that cafe's My Orders or Live Display.
+
+EACH DEMO CAFE WEBSITE
+Sunrise Cafe and Moonlight Coffee have their own menu, cart, checkout, My Orders, and Live Display pages. My Orders lists only the signed-in browser's orders for that cafe. The Live Display shows only that cafe's orders. Links stay within the current demo shop, except the explicit Other demo cafes link.
 
 STAFF FLOW
 Staff Login > find order by code > update order status.

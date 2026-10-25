@@ -10,6 +10,9 @@
   <div class="shop-code">{{ order.code }}</div>
   <h2>Total to pay: ₱{{ order.total }}</h2>
   <p>The cashier will find this code, validate your order, and take payment.</p>
-  <a class="shop-primary" href="{{ url_for('demo_shop', cafe_slug=shop.slug) }}">Back to {{ shop.name }}</a>
+  <a class="shop-primary shop-secondary" href="{{ url_for('demo_shop_my_orders', cafe_slug=shop.slug) }}">Track my {{ shop.name }} orders</a>
+  <a class="shop-primary" href="{{ url_for('demo_shop_live', cafe_slug=shop.slug) }}">View {{ shop.name }} live display</a>
+  <p><a href="{{ url_for('demo_shop', cafe_slug=shop.slug) }}">Back to {{ shop.name }} menu</a></p>
+  <p><a href="{{ url_for('demo_shop_staff_login', cafe_slug=shop.slug) }}">Staff? Sign in to manage {{ shop.name }} orders.</a></p>
 </section>
 {% endblock %}

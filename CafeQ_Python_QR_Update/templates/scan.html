@@ -10,8 +10,9 @@
     <button id="start-camera" type="button">Start Camera</button>
     <button id="stop-camera" class="light" type="button" disabled>Stop Camera</button>
   </div>
-  <p class="muted">Camera scanning requires a secure connection (HTTPS) or localhost and a browser with QR scanning support. You can also scan QR codes with your phone's built-in camera.</p>
+  <p class="muted">Camera access requires HTTPS or localhost. QR scanning and decoding happen in this page; camera frames are not uploaded to an external service.</p>
   <a href="{{ url_for('qr_page') }}">View demo cafe QR codes</a>
 </section>
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}" defer></script>
 <script src="{{ url_for('static', filename='qr-scanner.js') }}" defer></script>
 {% endblock %}

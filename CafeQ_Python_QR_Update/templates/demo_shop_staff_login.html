@@ -1,0 +1,16 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<section class="shop-panel shop-staff-login">
+  <span class="shop-kicker">{{ shop.name }} · STAFF PORTAL</span>
+  <h1>Staff sign in</h1>
+  <p>Sign in to find customer order codes, validate payment, and update this cafe's order status.</p>
+  <form method="post">
+    <label class="shop-label" for="staff-username">Username</label>
+    <input class="shop-input" id="staff-username" name="username" autocomplete="username" required>
+    <label class="shop-label" for="staff-password">Password</label>
+    <input class="shop-input" id="staff-password" type="password" name="password" autocomplete="current-password" required>
+    <button class="shop-primary" type="submit">Sign in to {{ shop.name }}</button>
+  </form>
+  <p class="shop-note">Demo credentials: <strong>staff</strong> / <strong>cafeq123</strong></p>
+</section>
+{% endblock %}

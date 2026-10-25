@@ -1,0 +1,65 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<div class="shop-staff-heading">
+  <div>
+    <span class="shop-kicker">{{ shop.name }} · PRIVATE STAFF PORTAL</span>
+    <h1>Order dashboard</h1>
+    <p>Review and manage orders placed at {{ shop.name }}.</p>
+  </div>
+  <a class="shop-primary shop-secondary" href="{{ url_for('demo_shop_staff_logout', cafe_slug=shop.slug) }}">Sign out</a>
+</div>
+
+<div class="shop-staff-stats">
+  <article class="shop-panel"><span class="shop-kicker">TOTAL ORDERS</span><strong>{{ orders|length }}</strong></article>
+  <article class="shop-panel"><span class="shop-kicker">PREPARING</span><strong>{{ preparing|length }}</strong></article>
+  <article class="shop-panel"><span class="shop-kicker">READY FOR PICKUP</span><strong>{{ ready|length }}</strong></article>
+</div>
+
+<section class="shop-panel" id="order-lookup">
+  <h2>Validate customer order & payment</h2>
+  <p>Ask the customer for their six-character validation code.</p>
+  <form class="shop-code-search" method="post">
+    <input class="shop-input" name="code" maxlength="6" pattern="[A-Za-z0-9]{6}" placeholder="ABC123" aria-label="Customer validation code" required>
+    <button class="shop-primary" type="submit">Find order</button>
+  </form>
+  {% if selected_order %}
+  <article class="shop-staff-order shop-selected-order" id="selected-order">
+    <div class="shop-staff-order-heading">
+      <div><span class="shop-kicker">{{ shop.name }}</span><h3>Order #{{ selected_order.number }}</h3></div>
+      <span class="shop-order-status">{{ selected_order.status }}</span>
+    </div>
+    <p>Customer: {{ selected_order.customer }} · {{ selected_order.type }} · Code: <strong>{{ selected_order.code }}</strong></p>
+    {% for item in selected_order["items"] %}
+    <div class="shop-summary-row"><span>{{ item.name }} × {{ item.qty }}</span><strong>₱{{ item.line_total }}</strong></div>
+    {% endfor %}
+    <div class="shop-total"><span>Total due</span><strong>₱{{ selected_order.total }}</strong></div>
+    {% if selected_order.status == "Pending Payment" %}
+    <p>Confirm the order details, collect payment, then validate the order.</p>
+    <form method="post" action="{{ url_for('demo_shop_staff_status', cafe_slug=shop.slug, code=selected_order.code, status='Paid') }}"><button class="shop-primary" type="submit">Validate & confirm payment</button></form>
+    {% elif selected_order.status == "Paid" %}
+    <form method="post" action="{{ url_for('demo_shop_staff_status', cafe_slug=shop.slug, code=selected_order.code, status='Preparing') }}"><button class="shop-primary" type="submit">Start preparing</button></form>
+    {% elif selected_order.status == "Preparing" %}
+    <form method="post" action="{{ url_for('demo_shop_staff_status', cafe_slug=shop.slug, code=selected_order.code, status='Ready for Pickup') }}"><button class="shop-primary" type="submit">Mark ready for pickup</button></form>
+    {% elif selected_order.status == "Ready for Pickup" %}
+    <form method="post" action="{{ url_for('demo_shop_staff_status', cafe_slug=shop.slug, code=selected_order.code, status='Completed') }}"><button class="shop-primary" type="submit">Complete order</button></form>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+
+<section class="shop-staff-orders">
+  <div class="shop-section-title"><div><span class="shop-kicker">LIVE IN THIS APP SESSION</span><h2>Customer orders</h2></div></div>
+  {% for order in orders %}
+  <article class="shop-staff-order">
+    <div class="shop-staff-order-heading">
+      <div><h3>Order #{{ order.number }} · {{ order.customer }}</h3><p>{{ order.type }} · Validation code: <strong>{{ order.code }}</strong></p></div>
+      <span class="shop-order-status">{{ order.status }}</span>
+    </div>
+    {% for item in order["items"] %}<div class="shop-summary-row"><span>{{ item.name }} × {{ item.qty }}</span><strong>₱{{ item.line_total }}</strong></div>{% endfor %}
+    <div class="shop-total"><span>Total</span><strong>₱{{ order.total }}</strong></div>
+  </article>
+  {% else %}
+  <article class="shop-panel"><p>No {{ shop.name }} orders yet. Orders placed on this demo website will appear here.</p></article>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<span class="shop-kicker">{{ shop.name }} · PICKUP BOARD</span>
+<h1>Live display</h1>
+<p>Live order progress for {{ shop.name }}. Refresh this page to see the latest updates.</p>
+<div class="shop-live-grid">
+  <section class="shop-live-column">
+    <div class="shop-section-title"><div><span class="shop-kicker">BEING MADE NOW</span><h2>Preparing</h2></div></div>
+    {% for order in preparing %}
+    <article class="shop-live-order">
+      <span class="shop-kicker">ORDER</span>
+      <strong>#{{ order.number }}</strong>
+      <span>{{ order.customer }}</span>
+      <span>{{ order.type }}</span>
+    </article>
+    {% else %}
+    <article class="shop-panel"><p>No orders are being prepared right now.</p></article>
+    {% endfor %}
+  </section>
+  <section class="shop-live-column">
+    <div class="shop-section-title"><div><span class="shop-kicker">READY TO COLLECT</span><h2>Ready for pickup</h2></div></div>
+    {% for order in ready %}
+    <article class="shop-live-order shop-live-ready">
+      <span class="shop-kicker">PLEASE COLLECT</span>
+      <strong>#{{ order.number }}</strong>
+      <span>{{ order.customer }}</span>
+      <span>{{ order.type }}</span>
+    </article>
+    {% else %}
+    <article class="shop-panel"><p>No orders are waiting for pickup.</p></article>
+    {% endfor %}
+  </section>
+</div>
+<p class="shop-live-note">This board only shows {{ shop.name }} orders.</p>
+{% endblock %}

@@ -12,8 +12,10 @@
     <nav>
       <a href="{{ url_for('demo_shop', cafe_slug=shop.slug) }}">Menu</a>
       <a href="{{ url_for('demo_shop_cart', cafe_slug=shop.slug) }}">Your order ({{ cart_count|default(0) }})</a>
-      <a href="{{ url_for('my_order') }}">My orders</a>
-      <a href="{{ url_for('home') }}">CafeQ home</a>
+      <a href="{{ url_for('demo_shop_my_orders', cafe_slug=shop.slug) }}">My orders</a>
+      <a href="{{ url_for('demo_shop_live', cafe_slug=shop.slug) }}">Live display</a>
+      <a href="{{ url_for('demo_shop_staff_login', cafe_slug=shop.slug) }}">Staff login</a>
+      <a href="{{ url_for('demo_cafes') }}">Other demo cafes</a>
     </nav>
   </header>
   <main class="shop-wrap">

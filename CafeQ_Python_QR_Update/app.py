@@ -140,6 +140,9 @@ def cafe_destination(cafe):
 def demo_cart_key(cafe_slug):
     return f"demo_cart_{cafe_slug}"
 
+def demo_customer_order_codes_key(cafe_slug):
+    return f"demo_customer_order_codes_{cafe_slug}"
+
 def demo_cart_items(shop):
     cart = session.get(demo_cart_key(shop["slug"]), {})
     items = []
@@ -155,6 +158,18 @@ def demo_cart_items(shop):
 
 def demo_cart_total(items):
     return sum(item["line_total"] for item in items)
+
+def demo_customer_orders(cafe_slug):
+    order_codes = set(session.get(demo_customer_order_codes_key(cafe_slug), []))
+    if not order_codes:
+        order_codes = set(session.get("customer_order_codes", []))
+    return [
+        order for order in ORDERS
+        if order.get("cafe_slug") == cafe_slug and order["code"] in order_codes
+    ]
+
+def demo_shop_staff_logged_in(cafe_slug):
+    return session.get("demo_staff_slug") == cafe_slug
 
 @app.route("/")
 def home():
@@ -187,7 +202,11 @@ def demo_shop(cafe_slug):
     shop = DEMO_SHOPS.get(cafe_slug)
     if shop is None:
         abort(404)
-    return render_template("demo_shop.html", shop=shop, cart_count=sum(session.get(demo_cart_key(cafe_slug), {}).values()))
+    return render_template(
+        "demo_shop.html",
+        shop=shop,
+        cart_count=sum(session.get(demo_cart_key(cafe_slug), {}).values()),
+    )
 
 @app.route("/shop/<cafe_slug>/add/<int:item_id>", methods=["POST"])
 def demo_shop_add(cafe_slug, item_id):
@@ -201,7 +220,7 @@ def demo_shop_add(cafe_slug, item_id):
     cart[key] = int(cart.get(key, 0)) + 1
     session[demo_cart_key(cafe_slug)] = cart
     flash("Added to your cafe order.")
-    return redirect(url_for("demo_shop", cafe_slug=cafe_slug))
+    return redirect(url_for("demo_shop", cafe_slug=cafe_slug) + "#menu")
 
 @app.route("/shop/<cafe_slug>/cart")
 def demo_shop_cart(cafe_slug):
@@ -254,9 +273,9 @@ def demo_shop_checkout(cafe_slug):
             "status": "Pending Payment",
         }
         ORDERS.insert(0, order)
-        customer_codes = session.get("customer_order_codes", [])
+        customer_codes = session.get(demo_customer_order_codes_key(cafe_slug), [])
         customer_codes.insert(0, code)
-        session["customer_order_codes"] = customer_codes
+        session[demo_customer_order_codes_key(cafe_slug)] = customer_codes
         session[demo_cart_key(cafe_slug)] = {}
         return render_template("demo_shop_confirmation.html", shop=shop, order=order)
     return render_template(
@@ -265,6 +284,106 @@ def demo_shop_checkout(cafe_slug):
         items=items,
         total=demo_cart_total(items),
     )
+
+@app.route("/shop/<cafe_slug>/my-orders")
+def demo_shop_my_orders(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    return render_template(
+        "demo_shop_orders.html",
+        shop=shop,
+        orders=demo_customer_orders(cafe_slug),
+        cart_count=sum(session.get(demo_cart_key(cafe_slug), {}).values()),
+    )
+
+@app.route("/shop/<cafe_slug>/live")
+def demo_shop_live(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    orders = [order for order in ORDERS if order.get("cafe_slug") == cafe_slug]
+    return render_template(
+        "demo_shop_live.html",
+        shop=shop,
+        preparing=[order for order in orders if order["status"] == "Preparing"],
+        ready=[order for order in orders if order["status"] == "Ready for Pickup"],
+        cart_count=sum(session.get(demo_cart_key(cafe_slug), {}).values()),
+    )
+
+@app.route("/shop/<cafe_slug>/staff/login", methods=["GET", "POST"])
+def demo_shop_staff_login(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    if demo_shop_staff_logged_in(cafe_slug):
+        return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug))
+    if request.method == "POST":
+        if request.form.get("username") == STAFF_USER and request.form.get("password") == STAFF_PASS:
+            session["demo_staff_slug"] = cafe_slug
+            session.pop("demo_staff_selected_code", None)
+            return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug))
+        flash("Wrong username or password.")
+    return render_template("demo_shop_staff_login.html", shop=shop)
+
+@app.route("/shop/<cafe_slug>/staff/logout")
+def demo_shop_staff_logout(cafe_slug):
+    if cafe_slug not in DEMO_SHOPS:
+        abort(404)
+    if demo_shop_staff_logged_in(cafe_slug):
+        session.pop("demo_staff_slug", None)
+        session.pop("demo_staff_selected_code", None)
+    return redirect(url_for("demo_shop", cafe_slug=cafe_slug))
+
+@app.route("/shop/<cafe_slug>/staff", methods=["GET", "POST"])
+def demo_shop_staff(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    if not demo_shop_staff_logged_in(cafe_slug):
+        return redirect(url_for("demo_shop_staff_login", cafe_slug=cafe_slug))
+    orders = [order for order in ORDERS if order.get("cafe_slug") == cafe_slug]
+    if request.method == "POST":
+        code = request.form.get("code", "").strip().upper()
+        order = next((item for item in orders if item["code"] == code), None)
+        if order:
+            session["demo_staff_selected_code"] = code
+            flash("Order found. Review it and validate payment below.")
+            return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug) + "#selected-order")
+        else:
+            session.pop("demo_staff_selected_code", None)
+            flash("No order from this cafe matches that code.")
+            return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug) + "#order-lookup")
+    selected_code = session.get("demo_staff_selected_code")
+    selected_order = next((item for item in orders if item["code"] == selected_code), None)
+    return render_template(
+        "demo_shop_staff.html",
+        shop=shop,
+        orders=orders,
+        selected_order=selected_order,
+        preparing=[order for order in orders if order["status"] == "Preparing"],
+        ready=[order for order in orders if order["status"] == "Ready for Pickup"],
+    )
+
+@app.route("/shop/<cafe_slug>/staff/status/<code>/<status>", methods=["POST"])
+def demo_shop_staff_status(cafe_slug, code, status):
+    if cafe_slug not in DEMO_SHOPS:
+        abort(404)
+    if not demo_shop_staff_logged_in(cafe_slug):
+        return redirect(url_for("demo_shop_staff_login", cafe_slug=cafe_slug))
+    allowed = ["Paid", "Preparing", "Ready for Pickup", "Completed"]
+    if status not in allowed:
+        abort(400)
+    order = next(
+        (item for item in ORDERS if item["code"] == code and item.get("cafe_slug") == cafe_slug),
+        None,
+    )
+    if order is None:
+        abort(404)
+    order["status"] = status
+    flash("Order status updated.")
+    session["demo_staff_selected_code"] = code
+    return redirect(url_for("demo_shop_staff", cafe_slug=cafe_slug) + "#selected-order")
 
 @app.route("/qr/<cafe_slug>.png")
 def qr_image(cafe_slug):
@@ -278,7 +397,9 @@ def qr_image(cafe_slug):
     image_file = BytesIO()
     picture.save(image_file, format="PNG")
     image_file.seek(0)
-    return send_file(image_file, mimetype="image/png")
+    response = send_file(image_file, mimetype="image/png")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
 @app.route("/add/<int:item_id>", methods=["POST"])
 def add(item_id):
