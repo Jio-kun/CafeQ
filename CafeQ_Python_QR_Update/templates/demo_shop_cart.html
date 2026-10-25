@@ -1,0 +1,24 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<span class="shop-kicker">{{ shop.name }}</span>
+<h1>Your order</h1>
+{% if items %}
+  <section class="shop-panel">
+    {% for item in items %}
+    <div class="shop-cart-row">
+      <div><span class="shop-category">{{ item.category }}</span><h2>{{ item.name }}</h2><p>₱{{ item.price }} each</p></div>
+      <div class="shop-quantity">
+        <form method="post" action="{{ url_for('demo_shop_quantity', cafe_slug=shop.slug, item_id=item.id, action='minus') }}"><button aria-label="Remove one {{ item.name }}">−</button></form>
+        <strong>{{ item.qty }}</strong>
+        <form method="post" action="{{ url_for('demo_shop_quantity', cafe_slug=shop.slug, item_id=item.id, action='plus') }}"><button aria-label="Add one {{ item.name }}">+</button></form>
+      </div>
+      <strong>₱{{ item.line_total }}</strong>
+    </div>
+    {% endfor %}
+    <div class="shop-total"><span>Total</span><strong>₱{{ total }}</strong></div>
+    <a class="shop-primary" href="{{ url_for('demo_shop_checkout', cafe_slug=shop.slug) }}">Continue to checkout</a>
+  </section>
+{% else %}
+  <section class="shop-panel"><p>Your order is empty.</p><a class="shop-primary" href="{{ url_for('demo_shop', cafe_slug=shop.slug) }}">Browse {{ shop.name }} menu</a></section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "staff_base.html" %}
+{% block content %}
+<span class="eyebrow">CAFE DIRECTORY</span>
+<h1>Manage cafes</h1>
+<p>Add real cafes with their own websites, or use the included demo cafes. Demo cafes open their locally hosted menus and ordering pages.</p>
+<p><a class="button light" href="{{ url_for('demo_cafes') }}">View demo cafe QR codes</a></p>
+
+<section class="card">
+  <h2>Add a cafe</h2>
+  <form method="post">
+    <div class="field">
+      <label for="new-name">Cafe name</label>
+      <input id="new-name" name="name" maxlength="100" required>
+    </div>
+    <div class="field">
+      <label for="new-website">Website URL</label>
+      <input id="new-website" name="website_url" type="url" placeholder="https://example.com" required>
+    </div>
+    <button>Add Cafe</button>
+  </form>
+</section>
+
+<h2>Registered cafes</h2>
+{% for cafe in cafes %}
+<section class="card">
+  <form method="post" action="{{ url_for('update_cafe', cafe_id=cafe.id) }}">
+    <div class="field">
+      <label for="name-{{ cafe.id }}">Cafe name</label>
+      {% if cafe.is_demo %}
+      <input id="name-{{ cafe.id }}" value="{{ cafe.name }}" readonly>
+      {% else %}
+      <input id="name-{{ cafe.id }}" name="name" value="{{ cafe.name }}" maxlength="100" required>
+      {% endif %}
+    </div>
+    <div class="field">
+      <label for="website-{{ cafe.id }}">Website URL</label>
+      {% if cafe.is_demo %}
+      <input id="website-{{ cafe.id }}" value="{{ url_for('demo_shop', cafe_slug=cafe.slug, _external=True) }}" readonly>
+      {% else %}
+      <input id="website-{{ cafe.id }}" name="website_url" type="url" value="{{ cafe.website_url }}" placeholder="https://example.com" required>
+      {% endif %}
+    </div>
+    {% if not cafe.is_demo %}<button>Save Changes</button>{% endif %}
+  </form>
+  {% if cafe.is_demo %}
+  <p class="muted">Built-in demo cafe. Its menu and website are served by this app.</p>
+  {% else %}
+  <p><a class="button light" href="{{ url_for('qr_page') }}">View cafe QR codes</a></p>
+  {% endif %}
+</section>
+{% else %}
+<section class="card"><p>No cafes have been registered yet.</p></section>
+{% endfor %}
+{% endblock %}

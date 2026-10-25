@@ -23,26 +23,36 @@ python -m pip install -r requirements.txt
    python app.py
 8. On the computer, open http://127.0.0.1:5000
 
-CUSTOMER QR CODE
-1. Open http://127.0.0.1:5000/qr to show the QR code.
-2. The QR code directs customers straight to the /menu page.
-3. IMPORTANT: 127.0.0.1 only works on the same computer. A phone cannot open your computer using that address.
-4. For a phone demo on the same Wi-Fi:
-   a. Run ipconfig in PowerShell and find your Wi-Fi IPv4 Address (example: 192.168.1.10).
-   b. Replace the example IP below with your own IP, then run this in the same terminal BEFORE python app.py:
-      $env:CAFEQ_BASE_URL="http://192.168.1.10:5000"
-   c. Start the app using python app.py.
-   d. On the computer, open http://192.168.1.10:5000/qr using your actual IP and scan the code with your phone.
-   e. Keep both devices on the same Wi-Fi. If Windows Firewall asks, allow Python on your private network.
-5. For scanning outside your Wi-Fi, the website needs to be hosted online and CAFEQ_BASE_URL set to that public website address.
+DEMO CAFE WEBSITES AND QR CODES
+1. Visit http://127.0.0.1:5000/demo-cafes to see, scan, or download the dummy cafe QR codes. The page uses its own template at templates/demo_cafes.html.
+2. Each QR contains a CafeQ website URL for a different demo cafe:
+   /shop/demo-sunrise-cafe
+   /shop/demo-moonlight-coffee
+3. The two demo websites have separate designs and menus. Customers can add items, choose Dine-in or Takeout, and receive an order validation code.
+4. The cashier signs in at /staff/login, enters the code, checks the order, collects payment, and confirms it.
+5. Demo cafe menu data and branding are in CafeQ_Python_QR_Update/demo_shops.py. The standalone shop templates and styling are in templates/demo_shop*.html and static/demo_shops.css.
+6. To make demo QR codes work on a phone over the same Wi-Fi, open the app using the computer's Wi-Fi IP (not 127.0.0.1), or set CAFEQ_BASE_URL to that reachable address before starting the app. For example:
+   $env:CAFEQ_BASE_URL="http://192.168.1.10:5000"
+7. For use outside the local network, deploy this app to a public HTTPS address and set CAFEQ_BASE_URL to that address.
+
+REAL CAFE QR CODES
+1. Sign in at http://127.0.0.1:5000/staff/login and open Manage Cafes.
+2. Add each real cafe with its public website URL. The QR code opens that cafe website directly.
+3. Cafe names and website URLs are saved in CafeQ_Python_QR_Update/instance/cafes.sqlite3.
+
+CAMERA QR SCANNER
+1. Open http://127.0.0.1:5000/scan and allow camera access.
+2. Point the camera at a cafe QR code. The scanner opens its CafeQ shop or real cafe website.
+3. Camera access requires HTTPS or localhost. This scanner uses the browser's built-in QR detector without a third-party scanning service. If the browser does not provide that detector, scan using the phone's built-in camera app.
 
 STAFF LOGIN
 Open http://127.0.0.1:5000/staff/login
 Username: staff
 Password: cafeq123
+Staff pages have their own navigation and dashboard. The dashboard includes customer orders and order validation; use Live Display to view preparing and ready orders.
 
 CUSTOMER FLOW
-Scan QR > Digital Menu > Add to Cart > Checkout > Validation Code
+Scan a demo cafe QR > Cafe-specific menu > Add to order > Choose Dine-in or Takeout > Show validation code to cashier > Cashier validates and takes payment.
 
 STAFF FLOW
 Staff Login > find order by code > update order status.

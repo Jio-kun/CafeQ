@@ -1,0 +1,15 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<section class="shop-panel shop-confirmation">
+  <span class="shop-kicker">ORDER SENT TO THE CASHIER</span>
+  <div class="shop-checkmark" aria-hidden="true">✓</div>
+  <h1>Your order is in!</h1>
+  <p>Thanks, {{ order.customer }}. Show this screen to the {{ shop.name }} cashier.</p>
+  <p>Order #{{ order.number }} · {{ order.type }}</p>
+  <p class="shop-code-label">YOUR VALIDATION CODE</p>
+  <div class="shop-code">{{ order.code }}</div>
+  <h2>Total to pay: ₱{{ order.total }}</h2>
+  <p>The cashier will find this code, validate your order, and take payment.</p>
+  <a class="shop-primary" href="{{ url_for('demo_shop', cafe_slug=shop.slug) }}">Back to {{ shop.name }}</a>
+</section>
+{% endblock %}

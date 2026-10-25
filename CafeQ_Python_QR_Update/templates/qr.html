@@ -1,12 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card" style="max-width:760px;margin:24px auto;text-align:center">
-  <span class="eyebrow">CAFEQ · SCAN TO ORDER</span>
-  <h1>Scan to Open Our Menu</h1>
-  <p>Use your phone camera to scan this QR code. It will open the CafeQ digital menu.</p>
-  <img src="{{ url_for('qr_image') }}" alt="QR code for the CafeQ menu" style="display:block;width:min(320px,80%);height:auto;margin:24px auto;background:white;padding:12px;border-radius:12px">
-  <p><strong>Menu link:</strong> <a href="{{ menu_url }}">{{ menu_url }}</a></p>
-  <p>For a phone to scan it, use a website link that your phone can reach. See README.txt for the simple same-Wi-Fi setup.</p>
-  <a class="button" href="{{ url_for('menu') }}">Open Menu</a>
-</section>
+<span class="eyebrow">CAFEQ · CAFE DIRECTORY</span>
+<h1>Scan a cafe's QR code</h1>
+<p>Each QR code opens that cafe's own website.</p>
+<p><a class="button" href="{{ url_for('scan_qr') }}">Use your camera to scan a QR</a></p>
+<div class="grid">
+  {% for cafe in cafes %}
+  <section class="card" style="text-align:center">
+    <h2>{{ cafe.name }}</h2>
+    {% if cafe.is_demo or cafe.website_url %}
+    <img src="{{ url_for('qr_image', cafe_slug=cafe.slug) }}" alt="QR code for {{ cafe.name }} website" style="display:block;width:min(260px,85%);height:auto;margin:18px auto;background:white;padding:10px;border-radius:12px">
+    <p><a href="{{ cafe.destination_url }}">{{ cafe.destination_url }}</a></p>
+    <a class="button" href="{{ url_for('qr_image', cafe_slug=cafe.slug) }}" download="{{ cafe.slug }}-qr.png">Download QR Code</a>
+    {% else %}
+    <p>This cafe's website has not been set up yet.</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="card">
+    <h2>No cafes added yet</h2>
+    <p>Staff can add cafes and their website addresses from the staff portal.</p>
+    <a class="button" href="{{ url_for('staff_login') }}">Staff Login</a>
+  </section>
+  {% endfor %}
+</div>
 {% endblock %}

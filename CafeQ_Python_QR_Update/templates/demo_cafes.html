@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<span class="eyebrow">CAFEQ · LOCAL DEMO SHOPS</span>
+<h1>Demo cafe QR codes</h1>
+<p>Scan a code or open its link to visit that cafe's own CafeQ demo website, menu, and ordering flow. These demo sites run locally in this project.</p>
+<p><a class="button light" href="{{ url_for('qr_page') }}">View all cafe QR codes</a></p>
+<div class="grid">
+  {% for cafe in cafes %}
+  <section class="card" style="text-align:center">
+    <span class="eyebrow">DEMO CAFE</span>
+    <h2>{{ cafe.name.replace("Demo Cafe - ", "") }}</h2>
+    <img src="{{ url_for('qr_image', cafe_slug=cafe.slug) }}" alt="QR code for {{ cafe.name }}" style="display:block;width:min(280px,85%);height:auto;margin:18px auto;background:white;padding:12px;border-radius:12px">
+    <p><a href="{{ cafe.destination_url }}">{{ cafe.destination_url }}</a></p>
+    <a class="button" href="{{ url_for('qr_image', cafe_slug=cafe.slug) }}" download="{{ cafe.slug }}-qr.png">Download Demo QR</a>
+    <a class="button light" href="{{ url_for('demo_shop', cafe_slug=cafe.slug) }}">Open Demo Shop</a>
+  </section>
+  {% else %}
+  <section class="card"><p>No demo cafes are configured.</p></section>
+  {% endfor %}
+</div>
+{% endblock %}

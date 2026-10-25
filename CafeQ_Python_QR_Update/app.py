@@ -1,12 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, abort, render_template, request, redirect, url_for, session, flash, send_file
 import random
 import string
 import os
+import re
+import sqlite3
 from io import BytesIO
+from urllib.parse import urlsplit
 import qrcode
+from demo_shops import DEMO_SHOPS
 
 app = Flask(__name__)
 app.secret_key = "change-this-demo-key"
+app.config["CAFEQ_DATABASE"] = os.path.join(app.instance_path, "cafes.sqlite3")
 
 # Menu items and prices from the Cafe Q menu PDF.
 MENU = [
@@ -63,6 +68,94 @@ def total():
 def staff_only():
     return session.get("staff_logged_in", False)
 
+def connect_db():
+    os.makedirs(os.path.dirname(app.config["CAFEQ_DATABASE"]) or ".", exist_ok=True)
+    connection = sqlite3.connect(app.config["CAFEQ_DATABASE"])
+    connection.row_factory = sqlite3.Row
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS cafes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            website_url TEXT NOT NULL DEFAULT '',
+            is_demo INTEGER NOT NULL DEFAULT 0
+        )"""
+    )
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(cafes)")}
+    if "is_demo" not in columns:
+        connection.execute("ALTER TABLE cafes ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0")
+    for shop in DEMO_SHOPS.values():
+        connection.execute(
+            """INSERT OR IGNORE INTO cafes (slug, name, website_url, is_demo)
+               VALUES (?, ?, '', 1)""",
+            (shop["slug"], f"Demo Cafe - {shop['name']}"),
+        )
+        connection.execute(
+            "UPDATE cafes SET is_demo = 1, website_url = '' WHERE slug = ?",
+            (shop["slug"],),
+        )
+    connection.commit()
+    return connection
+
+def get_cafes():
+    connection = connect_db()
+    try:
+        return [dict(row) for row in connection.execute(
+            "SELECT id, slug, name, website_url, is_demo FROM cafes ORDER BY name COLLATE NOCASE"
+        )]
+    finally:
+        connection.close()
+
+def get_cafe(slug):
+    connection = connect_db()
+    try:
+        row = connection.execute(
+            "SELECT id, slug, name, website_url, is_demo FROM cafes WHERE slug = ?", (slug,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        connection.close()
+
+def valid_website_url(value):
+    if not value or len(value) > 2048 or any(char.isspace() for char in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in {"http", "https"}
+        and bool(hostname)
+        and parsed.username is None
+        and parsed.password is None
+    )
+
+def cafe_destination(cafe):
+    if cafe["is_demo"]:
+        app_base_url = os.environ.get("CAFEQ_BASE_URL", request.url_root).rstrip("/")
+        return app_base_url + url_for("demo_shop", cafe_slug=cafe["slug"])
+    return cafe["website_url"]
+
+def demo_cart_key(cafe_slug):
+    return f"demo_cart_{cafe_slug}"
+
+def demo_cart_items(shop):
+    cart = session.get(demo_cart_key(shop["slug"]), {})
+    items = []
+    for item in shop["menu"]:
+        quantity = int(cart.get(str(item["id"]), 0))
+        if quantity:
+            items.append({
+                **item,
+                "qty": quantity,
+                "line_total": quantity * item["price"],
+            })
+    return items
+
+def demo_cart_total(items):
+    return sum(item["line_total"] for item in items)
+
 @app.route("/")
 def home():
     return render_template("home.html")
@@ -73,16 +166,113 @@ def menu():
 
 @app.route("/qr")
 def qr_page():
-    # Open this page to display the QR code customers scan.
-    menu_url = os.environ.get("CAFEQ_BASE_URL", request.host_url.rstrip("/")) + "/menu"
-    return render_template("qr.html", menu_url=menu_url)
+    cafes = get_cafes()
+    for cafe in cafes:
+        cafe["destination_url"] = cafe_destination(cafe)
+    return render_template("qr.html", cafes=cafes)
 
-@app.route("/qr.png")
-def qr_image():
-    # The QR code opens the CafeQ menu page.
-    menu_url = os.environ.get("CAFEQ_BASE_URL", request.host_url.rstrip("/")) + "/menu"
+@app.route("/demo-cafes")
+def demo_cafes():
+    cafes = [cafe for cafe in get_cafes() if cafe["is_demo"]]
+    for cafe in cafes:
+        cafe["destination_url"] = cafe_destination(cafe)
+    return render_template("demo_cafes.html", cafes=cafes)
+
+@app.route("/scan")
+def scan_qr():
+    return render_template("scan.html")
+
+@app.route("/shop/<cafe_slug>")
+def demo_shop(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    return render_template("demo_shop.html", shop=shop, cart_count=sum(session.get(demo_cart_key(cafe_slug), {}).values()))
+
+@app.route("/shop/<cafe_slug>/add/<int:item_id>", methods=["POST"])
+def demo_shop_add(cafe_slug, item_id):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    if not any(item["id"] == item_id for item in shop["menu"]):
+        abort(404)
+    cart = session.get(demo_cart_key(cafe_slug), {})
+    key = str(item_id)
+    cart[key] = int(cart.get(key, 0)) + 1
+    session[demo_cart_key(cafe_slug)] = cart
+    flash("Added to your cafe order.")
+    return redirect(url_for("demo_shop", cafe_slug=cafe_slug))
+
+@app.route("/shop/<cafe_slug>/cart")
+def demo_shop_cart(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    items = demo_cart_items(shop)
+    return render_template("demo_shop_cart.html", shop=shop, items=items, total=demo_cart_total(items))
+
+@app.route("/shop/<cafe_slug>/quantity/<int:item_id>/<action>", methods=["POST"])
+def demo_shop_quantity(cafe_slug, item_id, action):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    if action not in {"plus", "minus"} or not any(item["id"] == item_id for item in shop["menu"]):
+        abort(404)
+    cart = session.get(demo_cart_key(cafe_slug), {})
+    key = str(item_id)
+    if key in cart:
+        cart[key] = int(cart[key]) + (1 if action == "plus" else -1)
+        if cart[key] <= 0:
+            cart.pop(key)
+    session[demo_cart_key(cafe_slug)] = cart
+    return redirect(url_for("demo_shop_cart", cafe_slug=cafe_slug))
+
+@app.route("/shop/<cafe_slug>/checkout", methods=["GET", "POST"])
+def demo_shop_checkout(cafe_slug):
+    shop = DEMO_SHOPS.get(cafe_slug)
+    if shop is None:
+        abort(404)
+    items = demo_cart_items(shop)
+    if not items:
+        flash("Add an item before checking out.")
+        return redirect(url_for("demo_shop", cafe_slug=cafe_slug))
+    if request.method == "POST":
+        order_type = request.form.get("type", "")
+        if order_type not in {"Dine-in", "Takeout"}:
+            flash("Choose Dine-in or Takeout.")
+            return redirect(url_for("demo_shop_checkout", cafe_slug=cafe_slug))
+        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        order = {
+            "number": random.randint(100, 999),
+            "code": code,
+            "customer": request.form.get("customer", "").strip() or "CafeQ Guest",
+            "type": order_type,
+            "cafe_name": shop["name"],
+            "cafe_slug": cafe_slug,
+            "items": items,
+            "total": demo_cart_total(items),
+            "status": "Pending Payment",
+        }
+        ORDERS.insert(0, order)
+        customer_codes = session.get("customer_order_codes", [])
+        customer_codes.insert(0, code)
+        session["customer_order_codes"] = customer_codes
+        session[demo_cart_key(cafe_slug)] = {}
+        return render_template("demo_shop_confirmation.html", shop=shop, order=order)
+    return render_template(
+        "demo_shop_checkout.html",
+        shop=shop,
+        items=items,
+        total=demo_cart_total(items),
+    )
+
+@app.route("/qr/<cafe_slug>.png")
+def qr_image(cafe_slug):
+    cafe = get_cafe(cafe_slug)
+    if cafe is None or (not cafe["is_demo"] and not cafe["website_url"]):
+        abort(404)
     qr = qrcode.QRCode(box_size=8, border=3)
-    qr.add_data(menu_url)
+    qr.add_data(cafe_destination(cafe))
     qr.make(fit=True)
     picture = qr.make_image(fill_color="black", back_color="white")
     image_file = BytesIO()
@@ -129,6 +319,7 @@ def checkout():
             "code": code,
             "customer": request.form.get("customer", "").strip() or "CafeQ Guest",
             "type": request.form.get("type", "Takeout"),
+            "cafe_name": "CafeQ",
             "items": items,
             "total": total(),
             "status": "Pending Payment"
@@ -149,6 +340,8 @@ def my_order():
 
 @app.route("/staff/login", methods=["GET", "POST"])
 def staff_login():
+    if staff_only():
+        return redirect(url_for("staff"))
     if request.method == "POST":
         if request.form.get("username") == STAFF_USER and request.form.get("password") == STAFF_PASS:
             session["staff_logged_in"] = True
@@ -159,6 +352,7 @@ def staff_login():
 @app.route("/staff/logout")
 def staff_logout():
     session.pop("staff_logged_in", None)
+    session.pop("selected_code", None)
     return redirect(url_for("home"))
 
 @app.route("/staff", methods=["GET", "POST"])
@@ -175,7 +369,89 @@ def staff():
             session.pop("selected_code", None)
             flash("Code not found.")
         return redirect(url_for("staff"))
-    return render_template("staff.html", orders=ORDERS)
+    return render_template(
+        "staff.html",
+        orders=ORDERS,
+        preparing=[o for o in ORDERS if o["status"] == "Preparing"],
+        ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"],
+    )
+
+@app.route("/staff/cafes", methods=["GET", "POST"])
+def staff_cafes():
+    if not staff_only():
+        return redirect(url_for("staff_login"))
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        website_url = request.form.get("website_url", "").strip()
+        if not name or len(name) > 100:
+            flash("Enter a cafe name of 1 to 100 characters.")
+            return redirect(url_for("staff_cafes"))
+        if not valid_website_url(website_url):
+            flash("Enter a valid website URL starting with http:// or https://.")
+            return redirect(url_for("staff_cafes"))
+        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:80].strip("-")
+        if not slug:
+            flash("The cafe name must include at least one letter or number.")
+            return redirect(url_for("staff_cafes"))
+        connection = connect_db()
+        try:
+            connection.execute(
+                "INSERT INTO cafes (slug, name, website_url) VALUES (?, ?, ?)",
+                (slug, name, website_url),
+            )
+            connection.commit()
+        except sqlite3.IntegrityError:
+            flash("That cafe URL slug is already in use. Choose a different cafe name.")
+            return redirect(url_for("staff_cafes"))
+        finally:
+            connection.close()
+        flash("Cafe added. Its QR code opens the website URL.")
+        return redirect(url_for("staff_cafes"))
+    return render_template("staff_cafes.html", cafes=get_cafes())
+
+@app.route("/staff/cafes/<int:cafe_id>", methods=["POST"])
+def update_cafe(cafe_id):
+    if not staff_only():
+        return redirect(url_for("staff_login"))
+    name = request.form.get("name", "").strip()
+    website_url = request.form.get("website_url", "").strip()
+    if not name or len(name) > 100:
+        flash("Enter a cafe name of 1 to 100 characters.")
+        return redirect(url_for("staff_cafes"))
+    connection = connect_db()
+    try:
+        existing = connection.execute(
+            "SELECT is_demo FROM cafes WHERE id = ?", (cafe_id,)
+        ).fetchone()
+        if existing is None:
+            abort(404)
+        if not existing["is_demo"] and not valid_website_url(website_url):
+            flash("Enter a valid website URL starting with http:// or https://.")
+            return redirect(url_for("staff_cafes"))
+        if existing["is_demo"]:
+            website_url = ""
+        cursor = connection.execute(
+            "UPDATE cafes SET name = ?, website_url = ? WHERE id = ?",
+            (name, website_url, cafe_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    if cursor.rowcount == 0:
+        abort(404)
+    flash("Cafe details updated.")
+    return redirect(url_for("staff_cafes"))
+
+@app.route("/staff/live")
+def staff_live():
+    if not staff_only():
+        return redirect(url_for("staff_login"))
+    return render_template(
+        "live.html",
+        staff_view=True,
+        preparing=[o for o in ORDERS if o["status"] == "Preparing"],
+        ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"],
+    )
 
 @app.route("/staff/status/<code>/<status>", methods=["POST"])
 def status(code, status):
@@ -194,6 +470,7 @@ def status(code, status):
 @app.route("/live")
 def live():
     return render_template("live.html",
+        staff_view=False,
         preparing=[o for o in ORDERS if o["status"] == "Preparing"],
         ready=[o for o in ORDERS if o["status"] == "Ready for Pickup"])
 

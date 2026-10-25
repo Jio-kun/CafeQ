@@ -1,0 +1,36 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<section class="shop-hero">
+  <div>
+    <span class="shop-kicker">A CAFEQ DEMO CAFE · {{ shop.theme|upper }}</span>
+    <h1>{{ shop.name }}</h1>
+    <p class="shop-tagline">{{ shop.tagline }}</p>
+    <p>{{ shop.description }}</p>
+    <a class="shop-primary" href="#menu">Explore the menu</a>
+  </div>
+  <div class="shop-stamp" aria-hidden="true">{{ "☀" if shop.theme == "sunrise" else "☾" }}</div>
+</section>
+
+<section id="menu" class="shop-menu">
+  <div class="shop-section-title">
+    <div><span class="shop-kicker">MADE FRESH FOR YOU</span><h2>Our menu</h2></div>
+    <a class="shop-cart-link" href="{{ url_for('demo_shop_cart', cafe_slug=shop.slug) }}">View order ({{ cart_count }})</a>
+  </div>
+  <div class="shop-menu-grid">
+    {% for item in shop.menu %}
+    <article class="shop-menu-item">
+      <span class="shop-category">{{ item.category }}</span>
+      <h3>{{ item.name }}</h3>
+      <p>{{ item.description }}</p>
+      <div class="shop-item-bottom">
+        <strong>₱{{ item.price }}</strong>
+        <form method="post" action="{{ url_for('demo_shop_add', cafe_slug=shop.slug, item_id=item.id) }}">
+          <button type="submit">Add to order</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+<aside class="shop-how"><strong>Order here. Pay at the counter.</strong><span>Choose dine-in or takeout at checkout, then show your order code to the cashier to validate and pay.</span></aside>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card scanner">
+  <span class="eyebrow">CUSTOMER CAMERA SCANNER</span>
+  <h1>Scan a cafe QR code</h1>
+  <p>Allow camera access, then point your camera at a cafe QR code. A valid website URL will open automatically.</p>
+  <video id="camera-preview" playsinline muted aria-label="Camera preview for scanning a QR code"></video>
+  <p id="scanner-message" class="flash" role="status" aria-live="polite">Select Start Camera to begin scanning.</p>
+  <div class="row">
+    <button id="start-camera" type="button">Start Camera</button>
+    <button id="stop-camera" class="light" type="button" disabled>Stop Camera</button>
+  </div>
+  <p class="muted">Camera scanning requires a secure connection (HTTPS) or localhost and a browser with QR scanning support. You can also scan QR codes with your phone's built-in camera.</p>
+  <a href="{{ url_for('qr_page') }}">View demo cafe QR codes</a>
+</section>
+<script src="{{ url_for('static', filename='qr-scanner.js') }}" defer></script>
+{% endblock %}

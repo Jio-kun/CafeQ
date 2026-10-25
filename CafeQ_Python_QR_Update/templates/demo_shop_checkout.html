@@ -1,0 +1,27 @@
+{% extends "demo_shop_base.html" %}
+{% block shop_content %}
+<span class="shop-kicker">LAST STEP · {{ shop.name }}</span>
+<h1>Review & place your order</h1>
+<div class="shop-checkout-grid">
+  <section class="shop-panel">
+    <h2>Order summary</h2>
+    {% for item in items %}<div class="shop-summary-row"><span>{{ item.name }} × {{ item.qty }}</span><strong>₱{{ item.line_total }}</strong></div>{% endfor %}
+    <div class="shop-total"><span>Total due at cashier</span><strong>₱{{ total }}</strong></div>
+  </section>
+  <section class="shop-panel">
+    <h2>Order details</h2>
+    <form method="post">
+      <label class="shop-label" for="customer-name">Your name</label>
+      <input class="shop-input" id="customer-name" name="customer" maxlength="80" placeholder="Name for your order">
+      <label class="shop-label" for="order-type">Eating at the cafe or taking away?</label>
+      <select class="shop-input" id="order-type" name="type" required>
+        <option value="">Choose one</option>
+        <option value="Dine-in">Dine-in</option>
+        <option value="Takeout">Takeout</option>
+      </select>
+      <p class="shop-note">No online payment in this demo. Show your code to the cashier, who will validate your order and take payment.</p>
+      <button class="shop-primary" type="submit">Place order & get code</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
