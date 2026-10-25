@@ -64,6 +64,7 @@ python app.py
 | Staff sign-in | `/staff/login` |
 | Staff dashboard | `/staff` |
 | Staff live display | `/staff/live` |
+| Staff cafe QR codes | `/staff/qr` |
 
 Each demo shop has its own cart, checkout, My Orders, Live Display, and cashier pages. The shop's Staff Login link opens its cashier sign-in and dashboard.
 

@@ -293,12 +293,21 @@ def home():
 def menu():
     return render_template("menu.html", menu=menu_dicts())
 
-@app.route("/qr")
-def qr_page():
+def cafe_qr_list():
     cafes = get_cafes()
     for cafe in cafes:
         cafe["destination_url"] = cafe_destination(cafe)
-    return render_template("qr.html", cafes=cafes)
+    return cafes
+
+@app.route("/qr")
+def qr_page():
+    return render_template("qr.html", cafes=cafe_qr_list(), staff_view=False)
+
+@app.route("/staff/qr")
+def staff_qr_page():
+    if not staff_only():
+        return redirect(url_for("staff_login"))
+    return render_template("qr.html", cafes=cafe_qr_list(), staff_view=True)
 
 @app.route("/demo-cafes")
 def demo_cafes():

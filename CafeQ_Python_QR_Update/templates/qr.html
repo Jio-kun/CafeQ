@@ -1,9 +1,16 @@
-{% extends "base.html" %}
+{% extends "staff_base.html" if staff_view else "base.html" %}
 {% block content %}
+{% if staff_view %}
+<span class="eyebrow">STAFF PORTAL · CAFE DIRECTORY</span>
+<h1>Cafe QR codes</h1>
+<p>Download QR codes for registered cafes. Each code opens that cafe's website.</p>
+<p><a class="button light" href="{{ url_for('staff_cafes') }}">Manage cafes</a></p>
+{% else %}
 <span class="eyebrow">CAFEQ · CAFE DIRECTORY</span>
 <h1>Scan a cafe's QR code</h1>
 <p>Each QR code opens that cafe's own website.</p>
 <p><a class="button" href="{{ url_for('scan_qr') }}">Use your camera to scan a QR</a></p>
+{% endif %}
 <div class="grid">
   {% for cafe in cafes %}
   <section class="card" style="text-align:center">
@@ -20,7 +27,11 @@
   <section class="card">
     <h2>No cafes added yet</h2>
     <p>Staff can add cafes and their website addresses from the staff portal.</p>
+    {% if staff_view %}
+    <a class="button" href="{{ url_for('staff_cafes') }}">Manage Cafes</a>
+    {% else %}
     <a class="button" href="{{ url_for('staff_login') }}">Staff Login</a>
+    {% endif %}
   </section>
   {% endfor %}
 </div>
